@@ -30,14 +30,15 @@ struct LB;
 impl Service for LB {
     type ReactorMetadata = AtomicU32;
 
-    // the init function will only be called once
+    // the init method will only be called once
     // if it returns an error, the service will abort
-    async fn init(&self, input: &Self::ReactorMetadata) -> Res<()> {
+    // the init method has to return Self, and acts as a ::new() method
+    async fn init(input: &Self::ReactorMetadata) -> Res<Self> {
         println!("initializing lb");
         Ok(())
     }
     
-    // if the main function ends, the fallback will be called
+    // if the main method ends, the fallback will be called
     // and the main will follow.
     async fn main(&self, input: &Self::ReactorMetadata) -> Res<()> {
         input.fetch_add(1, Ordering::Relaxed);
@@ -45,7 +46,7 @@ impl Service for LB {
         Ok(())
     }
     
-    // the fallback function will be called after the main function
+    // the fallback method will be called after the main method
     // if it returns an error, the service will abort
     async fn fallback(&self, input: &Self::ReactorMetadata) -> Res<()> {
         println!("lb fallback");

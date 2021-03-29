@@ -17,9 +17,11 @@ macro_rules! capitan {
                 let mut v: $crate::capitan::StdReactorServices<_> = vec![];
                 $(
                     let a = meta.clone();
-                    let p = match $service::init(&a).await {
-                        Ok(s) => s,
-                        Err(err) => {
+                    let p = std::sync::Arc::new($service);
+                    v.push(p.clone());
+                    let p: tokio::task::JoinHandle<Res<()>> = tokio::spawn(async move {
+                        
+                        if let Err(err) = p.init(&a).await {
                             println!(
                                 "init failed in error {:?}, thread {:?}, {}:{}:{}",
                                 err,
@@ -29,11 +31,7 @@ macro_rules! capitan {
                                 column!()
                             );
                             return Err(err)
-                        }
-                    };
-                    let p = std::sync::Arc::new(p);
-                    v.push(p.clone());
-                    let p: tokio::task::JoinHandle<Res<()>> = tokio::spawn(async move {
+                        };
 
 
                         let fb = loop {

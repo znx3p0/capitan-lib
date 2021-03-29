@@ -32,8 +32,7 @@ impl Service for LB {
 
     // the init method will only be called once
     // if it returns an error, the service will abort
-    // the init method has to return Self, and acts as a ::new() method
-    async fn init(input: &Self::ReactorMetadata) -> Res<Self> {
+    async fn init(&self, input: &Self::ReactorMetadata) -> Res<()> {
         println!("initializing lb");
         Ok(())
     }

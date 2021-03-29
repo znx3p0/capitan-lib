@@ -25,4 +25,8 @@ pub trait Service {
     // this method will be called before looping the main method
     // ! if this method returns an error, the service will abort.
     async fn fallback(&self, input: &Self::ReactorMetadata) -> Res<()>;
+
+    // this method will be called if the init service does not fail and the
+    // fall back method fails.
+    async fn abort(&self, input: &Self::ReactorMetadata) -> Res<()>;
 }

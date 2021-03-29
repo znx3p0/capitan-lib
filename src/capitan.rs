@@ -1,6 +1,9 @@
-use crate::{reactor::Reactor, Res};
+use std::sync::Arc;
+
+use crate::{Res, reactor::Reactor, services::Service};
 use async_trait::async_trait;
 
+pub type StdReactorServices<T> = Vec<Arc<(dyn Service<ReactorMetadata = T> + Sync + Send)>>;
 
 /// helper macro to build highly-available services
 /// see README in repo for details
@@ -11,11 +14,12 @@ macro_rules! capitan {
         {
             let meta = std::sync::Arc::new($i);
             let services = {
-                let mut v = vec![];
+                let mut v: $crate::capitan::StdReactorServices<_> = vec![];
                 $(
                     let a = meta.clone();
+                    let p = std::sync::Arc::new($service);
+                    v.push(p.clone());
                     let p: tokio::task::JoinHandle<Res<()>> = tokio::spawn(async move {
-                        let p = $service;
                         
                         if let Err(err) = p.init(&a).await {
                             println!(
@@ -29,7 +33,8 @@ macro_rules! capitan {
                             return Err(err)
                         };
 
-                        loop {
+
+                        let fb = loop {
                             if let Err(err) = p.main(&a).await {
                                 println!(
                                     "catching error {:?} in thread {:?}, {}:{}:{}",
@@ -49,11 +54,24 @@ macro_rules! capitan {
                                     line!(),
                                     column!()
                                 );
-                                return Err(err)
+                                break Err(err)
                             };
-                        }
+                        };
+
+                        if let Err(err) = p.abort(&a).await {
+                            println!(
+                                "error in abort {:?} in thread {:?}, {}:{}:{}",
+                                err,
+                                std::thread::current().name().unwrap_or_default(),
+                                file!(),
+                                line!(),
+                                column!()
+                            );
+                        };
+
+                        fb
+
                     });
-                    v.push(p);
                 )+
                 v
             };
@@ -212,14 +230,16 @@ macro_rules! steer {
         fn $master_func: ident ($type:ty) -> fn $peer_func: ident ($peer_type:ty),
         $($tail:tt)*
     ) => {
-
+        
+        #[allow(non_camel_case_types)]
         #[async_trait::async_trait]
-        trait MasterSteerTrait {
+        pub trait $master_func {
             async fn $master_func(&mut self) -> $crate::Res<()>;
         }
-
+        
+        #[allow(non_camel_case_types)]
         #[async_trait::async_trait]
-        trait PeerSteerTrait {
+        pub trait $peer_func {
             async fn $peer_func(&mut self) -> $crate::Res<()>;
         }
 
@@ -229,7 +249,7 @@ macro_rules! steer {
         + tokio::io::AsyncWriteExt
         + Unpin
         + Sync
-        + Send> MasterSteerTrait for Steer<T, $type> {
+        + Send> $master_func for Steer<T, $type> {
             async fn $master_func(&mut self) -> $crate::Res<()> {
                 $crate::steer_build_m!(self $($tail)*);
                 Ok(())
@@ -242,7 +262,7 @@ macro_rules! steer {
         + tokio::io::AsyncWriteExt
         + Unpin
         + Sync
-        + Send> PeerSteerTrait for Steer<T, $peer_type> {
+        + Send> $peer_func for Steer<T, $peer_type> {
             async fn $peer_func(&mut self) -> $crate::Res<()> {
                 $crate::steer_build_p!(self $($tail)*);
                 Ok(())
@@ -280,13 +300,13 @@ macro_rules! steer {
 
 pub struct StdReactor<T> {
     pub metadata: T,
-    pub services: Vec<tokio::task::JoinHandle<Res<()>>>,
+    pub services: StdReactorServices<T>,
 }
 
 #[async_trait]
 impl<T: Sync + Send> Reactor for StdReactor<T> {
     type Metadata = T;
-    type Services = Vec<tokio::task::JoinHandle<Res<()>>>;
+    type Services = StdReactorServices<T>;
 
     async fn init(metadata: Self::Metadata, services: Self::Services) -> Self {
         StdReactor { metadata, services }

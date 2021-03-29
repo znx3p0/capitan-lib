@@ -1,12 +1,13 @@
 use anyhow::Error;
 
+pub mod capitan;
 pub mod encryption;
 pub mod events;
 pub mod macros;
+pub mod reactor;
 pub mod serialization;
 pub mod services;
+pub mod stream;
 pub mod structs;
-pub mod reactor;
-pub mod capitan;
 
 pub type Res<T> = Result<T, Error>;

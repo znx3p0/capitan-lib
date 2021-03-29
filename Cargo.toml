@@ -4,6 +4,15 @@ version = "0.1.0"
 authors = ["Jose Salazar <znx3p0@gmail.com>"]
 edition = "2018"
 
+
+license = "MIT"
+documentation = "https://docs.rs/capitan-lib/"
+repository = "https://github.com/znx3p0/capitan-lib"
+description = """
+CAPITAN | Distributed systems on a whim
+Highly-available, ergonomic, encrypted, stream deadlock-guaranteed distributed systems library.
+"""
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -11,4 +20,6 @@ serde = { version = "1.0", features = [ "derive" ] }
 log = "0.4"
 async-trait = "0.1"
 anyhow = "1.0"
-tokio = { version = "1", features = [ "rt" ] }
+tokio = { version = "1", features = [ "rt", "net", "io-util" ] }
+bincode = "1.3"
+

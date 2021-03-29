@@ -1,4 +1,3 @@
-
 use async_trait::async_trait;
 
 use crate::Res;
@@ -18,10 +17,12 @@ pub trait Service {
     */
 
     // this method will be called as before the main method
-    async fn init(&self, input: Self::ReactorMetadata) -> Res<()>;
+    // if it returns an error, the service will abort
+    async fn init(&self, input: &Self::ReactorMetadata) -> Res<()>;
     // this method will be looped
-    async fn main(&self, input: Self::ReactorMetadata) -> Res<()>;
+    // if it returns an error, the fallback will be run.
+    async fn main(&self, input: &Self::ReactorMetadata) -> Res<()>;
     // this method will be called before looping the main method
-    async fn fallback(&self, input: Self::ReactorMetadata) -> Res<()>;
-
+    // ! if this method returns an error, the service will abort.
+    async fn fallback(&self, input: &Self::ReactorMetadata) -> Res<()>;
 }

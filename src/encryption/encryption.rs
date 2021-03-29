@@ -1,8 +1,10 @@
+use crate::Res;
+use async_trait::async_trait;
 
+#[async_trait]
 pub trait Encrypt {
-    type Input;
-    type Output;
-
-    fn encrypt(input: Self::Input) -> Self::Output;
-    fn decrypt(input: Self::Output) -> Self::Input;
+    async fn encrypt(input: Vec<u8>, key: &[u8]) -> Res<Vec<u8>>;
+    async fn decrypt(out: Vec<u8>, key: &[u8]) -> Res<Vec<u8>>
+    where
+        Self: Sized;
 }

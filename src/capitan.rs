@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{Res, reactor::Reactor, services::Service};
 use async_trait::async_trait;
 
-pub type StdReactorServices<T> = Vec<Arc<(dyn Service<ReactorMetadata = T> + Sync + Send)>>;
+pub type StdReactorServices<T> = Vec<Arc<(dyn Service<ReactorMetadata = T> + Sync + Send + 'static)>>;
 
 /// helper macro to build highly-available services
 /// see README in repo for details

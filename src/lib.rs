@@ -1,6 +1,7 @@
 use anyhow::Error;
 
 pub mod capitan;
+pub mod service;
 pub mod encryption;
 pub mod events;
 pub mod macros;

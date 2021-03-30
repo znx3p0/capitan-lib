@@ -1,27 +1,50 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{Res, reactor::Reactor, services::Service};
 use async_trait::async_trait;
+use tokio::sync::RwLock;
 
-pub type StdReactorServices<T> = Vec<Arc<(dyn Service<ReactorMetadata = T> + Sync + Send + 'static)>>;
+pub type StdReactorServices<T> = Arc<RwLock<HashMap<String, ServiceType<T>>>>;
+pub type ServiceType<T> = Arc<(dyn Service<ReactorMetadata = T> + Sync + Send + 'static)>;
+
+#[async_trait]
+pub trait Spawner <T> {
+    async fn new_service(&self, service_id: &str, service: ServiceType<T>) -> Res<()>;
+    async fn delete_service(&self, service_id: &str) -> Res<()>;
+}
+
+#[async_trait]
+impl <T> Spawner <T> for StdReactorServices<T> {
+    async fn new_service(&self, service_id: &str, service: ServiceType<T>) -> Res<()> {
+        self.write().await.insert(service_id.into(), service);
+        Ok(())
+    }
+
+    async fn delete_service(&self, service_id: &str) -> Res<()> {
+        self.write().await.remove(service_id);
+        Ok(())
+    }
+}
 
 /// helper macro to build highly-available services
 /// see README in repo for details
 #[macro_export]
 macro_rules! capitan {
     () => {};
-    (metadata: $i:expr, services: [$($service: ident,)+]) => {
+    (metadata: $i:expr, services: [$($name: expr => $service: ident,)+]) => {
         {
+            use $crate::reactor::Reactor;
             let meta = std::sync::Arc::new($i);
             let services = {
-                let mut v: $crate::capitan::StdReactorServices<_> = vec![];
+                let mut v: $crate::capitan::StdReactorServices<_> = Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
                 $(
+                    let d = v.clone();
                     let a = meta.clone();
                     let p = std::sync::Arc::new($service);
-                    v.push(p.clone());
+                    v.write().await.insert($name.into(), p.clone());
                     let p: tokio::task::JoinHandle<Res<()>> = tokio::spawn(async move {
                         
-                        if let Err(err) = p.init(&a).await {
+                        if let Err(err) = p.init(&a, &d, $name).await {
                             println!(
                                 "init failed in error {:?}, thread {:?}, {}:{}:{}",
                                 err,
@@ -35,7 +58,7 @@ macro_rules! capitan {
 
 
                         let fb = loop {
-                            if let Err(err) = p.main(&a).await {
+                            if let Err(err) = p.main(&a, &d, $name).await {
                                 println!(
                                     "catching error {:?} in thread {:?}, {}:{}:{}",
                                     err,
@@ -45,7 +68,7 @@ macro_rules! capitan {
                                     column!()
                                 );
                             };
-                            if let Err(err) = p.fallback(&a).await {
+                            if let Err(err) = p.fallback(&a, &d, $name).await {
                                 println!(
                                     "fallback failed in error {:?}, thread {:?}, {}:{}:{}",
                                     err,
@@ -58,7 +81,7 @@ macro_rules! capitan {
                             };
                         };
 
-                        if let Err(err) = p.abort(&a).await {
+                        if let Err(err) = p.abort(&a, &d, $name).await {
                             println!(
                                 "error in abort {:?} in thread {:?}, {}:{}:{}",
                                 err,
@@ -75,7 +98,7 @@ macro_rules! capitan {
                 )+
                 v
             };
-            StdReactor::init(meta.clone(), services).await
+            $crate::capitan::StdReactor::init(meta.clone(), services).await
         }
     }
     /*

@@ -1,10 +1,13 @@
+use std::sync::Arc;
+
+use std::any::Any;
 use async_trait::async_trait;
 
 use crate::Res;
 use crate::capitan::StdReactorServices;
 
 #[async_trait]
-pub trait Service {
+pub trait Service: Any {
     type ReactorMetadata;
 
     /*
@@ -30,4 +33,7 @@ pub trait Service {
     // this method will be called if the init service does not fail and the
     // fall back method fails.
     async fn abort(&self, input: &Self::ReactorMetadata, spawner: &StdReactorServices<Self::ReactorMetadata>, service_id: &str) -> Res<()>;
+    fn as_any(&self) -> Arc<dyn std::any::Any> {
+        Arc::new(self.type_id())
+    }
 }

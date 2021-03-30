@@ -33,7 +33,7 @@ pub trait Service: Any {
     // this method will be called if the init service does not fail and the
     // fall back method fails.
     async fn abort(&self, input: &Self::ReactorMetadata, spawner: &StdReactorServices<Self::ReactorMetadata>, service_id: &str) -> Res<()>;
-    fn as_any(&self) -> Arc<dyn std::any::Any> {
+    fn as_any(&self) -> Arc<dyn std::any::Any + Send + Sync> {
         Arc::new(self.type_id())
     }
 }

@@ -5,7 +5,8 @@
 ## Service
 
 ```rust
-// Services cannot
+// Services are structures with the service trait
+// services can be run from a reactor.
 struct LB;
 #[async_trait]
 impl Service for LB {

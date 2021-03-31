@@ -1,6 +1,6 @@
 [package]
 name = "capitan-lib"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Jose Salazar <znx3p0@gmail.com>"]
 edition = "2018"
 
@@ -9,8 +9,8 @@ license = "MIT"
 documentation = "https://docs.rs/capitan-lib/"
 repository = "https://github.com/znx3p0/capitan-lib"
 description = """
-CAPITAN | Distributed systems on a whim
-Highly-available, ergonomic, encrypted, stream deadlock-guaranteed distributed systems library.
+CAPITAN | Distributed systems and services library (WIP)
+this library allows you to create resilient services, designed for building manageable distributed systems.
 """
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

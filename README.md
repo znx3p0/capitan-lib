@@ -1,10 +1,11 @@
 # CAPITAN
 
+## DISTRIBUTED SYSTEMS AND SERVICE LIBRARY (WIP)
+
 ## Service
 
 ```rust
-// first off, there's services, which are highly available functions.
-// they cannot crash unless the init or the fallback processes fail.
+// Services cannot
 struct LB;
 #[async_trait]
 impl Service for LB {

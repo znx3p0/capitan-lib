@@ -1,6 +1,6 @@
 [package]
 name = "capitan-lib"
-version = "0.1.8"
+version = "0.2.0"
 authors = ["Jose Salazar <znx3p0@gmail.com>"]
 edition = "2018"
 
@@ -21,5 +21,4 @@ log = "0.4"
 async-trait = "0.1"
 anyhow = "1.0"
 tokio = { version = "1", features = [ "rt", "net", "io-util", "sync" ] }
-bincode = "1.3"
 

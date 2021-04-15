@@ -32,7 +32,10 @@ pub trait Service: Any {
     async fn catch(&mut self, error: anyhow::Error) -> Res<()>;
     /// run if catch was not successful
     async fn abort(&mut self) -> Res<()>;
-    fn to_dyn(self) -> DynamicService where Self: Sized + Sync + Send {
+    fn to_dyn(self) -> DynamicService
+    where
+        Self: Sized + Sync + Send,
+    {
         DynamicService(Box::new(self))
     }
 }
@@ -71,11 +74,10 @@ impl Service for DynamicService {
         self.0.abort().await?;
         Ok(())
     }
-
 }
 
-pub struct Reactor <T: Service + Send + Sync> {
-    pub services: Arc<RwLock<HashMap</* id */ String, Arc<(Arc<RwLock<T>>, JoinHandle<Res<()>>)>>>>
+pub struct Reactor<T: Service + Send + Sync> {
+    pub services: Arc<RwLock<HashMap</* id */ String, Arc<(Arc<RwLock<T>>, JoinHandle<Res<()>>)>>>>,
 }
 
 macro_rules! yields {
@@ -84,22 +86,21 @@ macro_rules! yields {
     };
 }
 
-impl <T: Service + Send + Sync> Reactor <T> {
+impl<T: Service + Send + Sync> Reactor<T> {
     pub fn new() -> Self {
-        Self { services: Arc::new(RwLock::new(HashMap::new())) }
+        Self {
+            services: Arc::new(RwLock::new(HashMap::new())),
+        }
     }
 
     pub async fn spawn_service(&mut self, service_id: &str, service: T) -> Res<()> {
-        
-        
         let service = Arc::new(RwLock::new(service));
-        
+
         let p = service.clone();
-        let services =self.services.clone();
+        let services = self.services.clone();
         let sid = service_id.to_string();
 
         let p = spawn(async move {
-
             yields! {
                 let mut d = p.write().await;
                 if let Err(e) = d.init().await {
@@ -108,18 +109,8 @@ impl <T: Service + Send + Sync> Reactor <T> {
                 }
             };
 
-            // async {
-            //     let mut d = p.write().await;
-            //     if let Err(e) = d.init().await {
-            //         print_err!(e);
-            //         return Err(e)
-            //     }
-            //     Ok(())
-            // }.await?;
-
-            
             loop {
-
+                // mem drops are used so the rwlock can be usable externally.
                 let mut d = p.write().await;
                 match d.main().await {
                     Ok(_) => {
@@ -135,7 +126,7 @@ impl <T: Service + Send + Sync> Reactor <T> {
                                     Err(e) => {
                                         print_err!(e);
                                         break;
-                                    },
+                                    }
                                 }
                             }
                         }
@@ -144,55 +135,33 @@ impl <T: Service + Send + Sync> Reactor <T> {
                         std::mem::drop(d);
                         let mut d = p.write().await;
                         match d.catch(e).await {
-                            Ok(_) => {},
+                            Ok(_) => {}
                             Err(e) => {
                                 print_err!(e);
                                 break;
-                            },
+                            }
                         }
                     }
-        
                 }
-
             }
 
             let mut services = services.write().await;
             services.remove(&sid);
 
             yields! {
-                let mut d = p.write().await;   
+                let mut d = p.write().await;
                 if let Err(e) = d.abort().await {
                     print_err!(e);
                     return Err(e)
                 }
             }
-            
+
             Ok(())
         });
-        
+
         let mut services = self.services.write().await;
         services.insert(service_id.to_string(), Arc::new((service, p)));
 
         Ok(())
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

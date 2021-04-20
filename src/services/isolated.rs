@@ -1,4 +1,4 @@
-use std::{any::Any, sync::Arc};
+use std::any::Any;
 
 use anyhow::Result as Res;
 use async_trait::async_trait;
@@ -21,7 +21,7 @@ pub trait IsolatedService: Any {
     /// runs after main if main returned an error
     async fn catch(&mut self, error: anyhow::Error) -> Res<()>;
     /// run if catch was not successful
-    async fn abort(&mut self) -> Res<()>;
+    async fn abort(&mut self, error: anyhow::Error) -> Res<()>;
 
     fn to_dyn(self) -> DynamicIsolatedService
     where
@@ -31,39 +31,56 @@ pub trait IsolatedService: Any {
     }
 }
 
-use crate::catch_err;
-use crate::print_err;
+use crate::{ignore_print_result, print_err};
 
 #[async_trait]
 impl<T: IsolatedService + Send + Sync> IsolatedReactorTrait<T> for IsolatedReactor {
     async fn spawn_service(&self, mut service: T, id: usize) -> Res<()> {
+        let services = self.services.clone();
+        let channel = self.notifier_channel.0.clone();
         let handle = tokio::spawn(async move {
-            catch_err!(service.init().await);
-            loop {
+            if let Err(err) = service.init().await {
+                let alive = {
+                    let mut services = services.write().await;
+                    services.remove(&id);
+                    services.len() == 0
+                };
+                if let Err(e) = service.abort(err).await {
+                    channel.send(alive).ok();
+                    return Err(e);
+                };
+                channel.send(alive).ok();
+            }
+
+            let err = loop {
                 if let Err(e) = service.main().await {
-                    match service.catch(e).await {
-                        Ok(_) => log::info!("successfully catching service with id {}", id),
-                        Err(e) => {
-                            print_err!(e);
-                            break;
-                        }
-                    }
+                    ignore_print_result!(service.catch(e).await, e, id);
                 }
                 if let Err(e) = service.repeat().await {
-                    match service.catch(e).await {
-                        Ok(_) => log::info!("successfully catching service with id {}", id),
-                        Err(e) => {
-                            print_err!(e);
-                            break;
-                        }
-                    }
+                    ignore_print_result!(service.catch(e).await, e, id);
                 }
-            }
-            catch_err!(service.abort().await);
+            };
+
+            let alive = {
+                let mut services = services.write().await;
+                services.remove(&id);
+                services.len() == 0
+            };
+
+            if let Err(e) = service.abort(err).await {
+                channel.send(alive).ok();
+                return Err(e);
+            };
+
+            channel.send(alive).ok();
+
             Ok(())
         });
 
-        self.services.write().await.push(handle);
+        {
+            let mut services = self.services.write().await;
+            services.insert(id, handle);
+        }
         Ok(())
     }
 }

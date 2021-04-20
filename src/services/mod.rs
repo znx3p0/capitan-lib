@@ -1,4 +1,4 @@
-mod dynamic;
+pub mod dynamic;
 mod isolated;
 mod macros;
 mod reactor;

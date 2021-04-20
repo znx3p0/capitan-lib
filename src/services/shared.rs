@@ -1,8 +1,10 @@
 use super::{dynamic::DynamicSharedService, prelude::SharedR, SharedReactor};
 use anyhow::Result as Res;
 use async_trait::async_trait;
-use std::{any::Any, sync::Arc};
-use tokio::sync::RwLock;
+use std::{
+    any::Any,
+    sync::{Arc, Weak},
+};
 
 #[async_trait]
 pub trait SharedService: Any {
@@ -15,85 +17,75 @@ pub trait SharedService: Any {
     /// runs after main if main returned an error
     async fn catch(&self, error: anyhow::Error) -> Res<()>;
     /// run if catch was not successful
-    async fn abort(&self) -> Res<()>;
+    async fn abort(&self, error: anyhow::Error) -> Res<()>;
 
-    fn to_dyn(self) -> DynamicSharedService
+    fn to_dyn(self) -> (DynamicSharedService, Weak<Self>)
     where
         Self: Sized + Sync + Send,
     {
-        DynamicSharedService(Box::new(self))
+        let p = Arc::new(self);
+        let s = Arc::downgrade(&p);
+        (DynamicSharedService(p), s)
     }
 }
 
-use crate::{print_err, yields};
+use crate::{ignore_print_result, print_err};
 
 #[async_trait]
 impl<T: SharedService + Send + Sync> SharedR<T> for SharedReactor<T> {
     async fn spawn_service(&self, service: T, id: usize) -> Res<()> {
-        let service = Arc::new(RwLock::new(service));
-        let p = service.clone();
+        let service = Arc::new(service);
         let services = self.services.clone();
+        let channel = self.notifier_channel.0.clone();
+        let p = service.clone();
         let handle = tokio::spawn(async move {
-            yields! {
-                let d = p.write().await;
-                if let Err(e) = d.init().await {
-                    print_err!(e);
-                    return Err(e)
+            if let Err(err) = p.init().await {
+                let alive = {
+                    let mut services = services.write().await;
+                    services.remove(&id);
+                    services.len() == 0
+                };
+                if let Err(e) = p.abort(err).await {
+                    channel.send(alive).ok();
+                    return Err(e);
+                };
+                channel.send(alive).ok();
+            }
+
+            let err = loop {
+                if let Err(e) = p.main().await {
+                    ignore_print_result!(p.catch(e).await, e, id);
+                }
+                if let Err(e) = p.repeat().await {
+                    ignore_print_result!(p.catch(e).await, e, id);
                 }
             };
-            loop {
-                // mem drops are used so the rwlock can be usable externally.
-                let mut d = p.write().await;
-                match d.main().await {
-                    Ok(_) => {
-                        std::mem::drop(d);
-                        let mut d = p.write().await;
-                        match d.repeat().await {
-                            Ok(_) => std::mem::drop(d),
-                            Err(e) => {
-                                std::mem::drop(d);
-                                let mut d = p.write().await;
-                                match d.catch(e).await {
-                                    Ok(_) => std::mem::drop(d),
-                                    Err(e) => {
-                                        print_err!(e);
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        std::mem::drop(d);
-                        let d = p.write().await;
-                        match d.catch(e).await {
-                            Ok(_) => {}
-                            Err(e) => {
-                                print_err!(e);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
 
-            yields! {
-                let d = p.write().await;
-                if let Err(e) = d.abort().await {
-                    print_err!(e);
-                    return Err(e)
-                }
-            }
+            let alive = {
+                let mut services = services.write().await;
+                services.remove(&id);
+                services.len() == 0
+            };
 
-            let mut services = services.write().await;
-            services.remove(id);
+            if let Err(e) = p.abort(err).await {
+                channel.send(alive).ok();
+                return Err(e);
+            };
+
+            channel.send(alive).ok();
 
             Ok(())
         });
 
-        let mut services = self.services.write().await;
-        services.push(Arc::new((id, service, handle)));
+        {
+            let mut services = self.services.write().await;
+            services.insert(id, Arc::new((service, handle)));
+        }
 
         Ok(())
+    }
+
+    async fn get_service(&self, id: usize) -> Option<Weak<T>> {
+        Some(Arc::downgrade(&self.services.read().await.get(&id)?.0))
     }
 }

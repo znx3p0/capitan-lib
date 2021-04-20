@@ -8,7 +8,7 @@ use super::{
     reactor::{IsolatedReactor, IsolatedReactorTrait},
 };
 
-/// isolated services are services that can't be accessed from the outside.
+/// Isolated services are services that can't be accessed from the outside.
 /// they are helpful as root services, services that hold other services.
 #[async_trait]
 pub trait IsolatedService: Any {

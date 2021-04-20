@@ -22,6 +22,7 @@ pub trait IsolatedReactorTrait<T: IsolatedService> {
 
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
+/// Contains and runs isolated services
 pub struct IsolatedReactor {
     pub services: Arc<RwLock<HashMap<usize, JoinHandle<Res<()>>>>>,
     pub notifier_channel: (UnboundedSender<bool>, UnboundedReceiver<bool>),
@@ -48,6 +49,7 @@ impl IsolatedReactor {
     }
 }
 
+/// Contains and runs shared services
 pub struct SharedReactor<T: SharedService + Send + Sync> {
     pub services: Arc<RwLock<HashMap<usize, Arc<(Arc<T>, JoinHandle<Res<()>>)>>>>,
     pub notifier_channel: (UnboundedSender<bool>, UnboundedReceiver<bool>),

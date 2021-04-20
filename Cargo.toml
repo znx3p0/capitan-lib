@@ -1,6 +1,6 @@
 [package]
 name = "capitan-lib"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Jose Salazar <znx3p0@gmail.com>"]
 edition = "2018"
 
@@ -9,16 +9,15 @@ license = "MIT"
 documentation = "https://docs.rs/capitan-lib/"
 repository = "https://github.com/znx3p0/capitan-lib"
 description = """
-CAPITAN | Distributed systems and services library (WIP)
-this library allows you to create resilient services, designed for building manageable distributed systems.
+CAPITAN | Supervisor tree library
+
+Capitan allows you to create and configure services and supervisor trees through reactors and services.
 """
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serde = { version = "1.0", features = [ "derive" ] }
 log = "0.4"
 async-trait = "0.1"
 anyhow = "1.0"
 tokio = { version = "1", features = [ "rt", "net", "io-util", "sync" ] }
-crossbeam = "0.8"

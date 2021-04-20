@@ -6,6 +6,8 @@ use std::{
     sync::{Arc, Weak},
 };
 
+/// Services with a reference to self. Can be shared among threads.
+/// Useful for monitoring services and others.
 #[async_trait]
 pub trait SharedService: Any {
     /// only runs once at the start
